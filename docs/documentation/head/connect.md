@@ -12,12 +12,12 @@ next: ssl.html
 With JDBC, a database is represented by a URL (Uniform Resource Locator). With
 PostgreSQL, this takes one of the following forms:
 
-* jdbc:postgresql:*`database`*
-* jdbc:postgresql:/
-* jdbc:postgresql://*`host/database`*
-* jdbc:postgresql://*`host/`*
-* jdbc:postgresql://*`host:port/database`*
-* jdbc:postgresql://*`host:port/`*
+* jdbc:postgresqlvault:*`database`*
+* jdbc:postgresqlvault:/
+* jdbc:postgresqlvault://*`host/database`*
+* jdbc:postgresqlvault://*`host/`*
+* jdbc:postgresqlvault://*`host:port/database`*
+* jdbc:postgresqlvault://*`host:port/`*
 
 The parameters have the following meanings:
 
@@ -68,11 +68,30 @@ Connection conn = DriverManager.getConnection(url);
 
 * **user** = String
 
-	The database user on whose behalf the connection is being made. 
+	The user on whose behalf the connection is being made.  This is the username that
+    will be authenticated with Vault, not the actual database.
 
 * **password** = String
 
-	The database user's password. 
+	The user's password.  This is the password that will be authenticated with Vault,
+    not the actual database.
+    
+* **vaultHost** = String
+
+    The address of the Vault server expressed as a URL and port, for example: `http://127.0.0.1:8200`
+    
+    NOTE.  This driver does *not* respect the `VAULT_ADDR` environment variable.
+    
+* **vaultAuthPath** = String
+
+    The path in Vault to authenticate against.  This endpoint must expect two arguments, `username` and `password`, for
+    example the built-in `ldap`, `okta`,  and `userpass` authentication backends.
+    
+* **vaultDBPath** = String
+
+    The path in Vault to generate credentials for the database, for example based on the
+    [Vault PostgreSQL plugin Quick Start configuration](https://www.vaultproject.io/docs/secrets/databases/postgresql.html)
+    the value `database/creds/readonly` would be used.
 
 * **ssl** = boolean
 
