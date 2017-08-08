@@ -14,6 +14,8 @@ import org.postgresql.util.PSQLException;
 import org.postgresql.util.PSQLState;
 import org.postgresql.util.SharedTimer;
 import org.postgresql.util.WriterHandler;
+import org.postgresql.util.VaultLookup;
+import org.postgresql.util.VaultRenewalTaskScheduler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -190,7 +192,7 @@ public class Driver implements java.sql.Driver {
    * Our protocol takes the forms:
    *
    * <PRE>
-   *  jdbc:postgresql://host:port/database?param1=val1&amp;...
+   *  jdbc:postgresqlvault://host:port/database?param1=val1&amp;...
    * </PRE>
    *
    * @param url the URL of the database to connect to
@@ -202,8 +204,9 @@ public class Driver implements java.sql.Driver {
   public java.sql.Connection connect(String url, Properties info) throws SQLException {
     // get defaults
     Properties defaults;
+    Connection conn;
 
-    if (!url.startsWith("jdbc:postgresql:")) {
+    if (!url.startsWith("jdbc:postgresqlvault:")) {
       return null;
     }
     try {
@@ -234,10 +237,28 @@ public class Driver implements java.sql.Driver {
       return null;
     }
     try {
+      final VaultLookup vault;
       // Setup java.util.logging.Logger using connection properties.
       setupLoggerFromProperties(props);
+      
+      if (props.getProperty("vaultHost") != null) {
+        LOGGER.log(Level.INFO, "Attempting to authenticate with Vault server at {0}", props.getProperty("vaultHost"));
+        try {
+          vault = new VaultLookup(props.getProperty("vaultHost"), props.getProperty("vaultAuthPath", "userpass"), props.getProperty("vaultDBPath", "database/creds/default"), props.getProperty("user"), props.getProperty("password"));
+          props.setProperty("user", vault.getUser());
+          props.setProperty("password", vault.getPass());
+        } catch (Exception e) {
+          LOGGER.log(Level.SEVERE, "Vault exception: {0}", e.getMessage());
+          return null;
+        }
+      } else {
+        // Otherwise the Java compiler won't realize the if block above is identical
+        // to the guard before creating the renewal task, and think the variable isn't
+        // initialized
+        vault = null; 
+      }
 
-      LOGGER.log(Level.FINE, "Connecting with URL: {0}", url);
+      LOGGER.log(Level.INFO, "Connecting with URL: {0}", url);
 
       // Enforce login timeout, if specified, by running the connection
       // attempt in a separate thread. If we hit the timeout without the
@@ -249,14 +270,18 @@ public class Driver implements java.sql.Driver {
       // more details.
       long timeout = timeout(props);
       if (timeout <= 0) {
-        return makeConnection(url, props);
+        conn = makeConnection(url, props);
+      } else {
+        ConnectThread ct = new ConnectThread(url, props);
+        Thread thread = new Thread(ct, "PostgreSQL JDBC driver connection thread");
+        thread.setDaemon(true); // Don't prevent the VM from shutting down
+        thread.start();
+        conn = ct.getResult(timeout);
       }
-
-      ConnectThread ct = new ConnectThread(url, props);
-      Thread thread = new Thread(ct, "PostgreSQL JDBC driver connection thread");
-      thread.setDaemon(true); // Don't prevent the VM from shutting down
-      thread.start();
-      return ct.getResult(timeout);
+      if (props.getProperty("vaultHost") != null) {
+        final VaultRenewalTaskScheduler renewalThread = new VaultRenewalTaskScheduler((PgConnection)conn, vault.getRenewalConfig());
+      }
+      return conn;
     } catch (PSQLException ex1) {
       LOGGER.log(Level.SEVERE, "Connection error: ", ex1);
       // re-throw the exception, otherwise it will be caught next, and a
@@ -453,7 +478,7 @@ public class Driver implements java.sql.Driver {
   /**
    * Returns true if the driver thinks it can open a connection to the given URL. Typically, drivers
    * will return true if they understand the subprotocol specified in the URL and false if they
-   * don't. Our protocols start with jdbc:postgresql:
+   * don't. Our protocols start with jdbc:postgresqlvault:
    *
    * @param url the URL of the driver
    * @return true if this driver accepts the given URL
@@ -534,10 +559,10 @@ public class Driver implements java.sql.Driver {
       l_urlArgs = url.substring(l_qPos + 1);
     }
 
-    if (!l_urlServer.startsWith("jdbc:postgresql:")) {
+    if (!l_urlServer.startsWith("jdbc:postgresqlvault:")) {
       return null;
     }
-    l_urlServer = l_urlServer.substring("jdbc:postgresql:".length());
+    l_urlServer = l_urlServer.substring("jdbc:postgresqlvault:".length());
 
     if (l_urlServer.startsWith("//")) {
       l_urlServer = l_urlServer.substring(2);

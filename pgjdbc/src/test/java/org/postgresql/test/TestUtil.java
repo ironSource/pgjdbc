@@ -73,7 +73,7 @@ public class TestUtil {
       ssl = "&ssl=" + getSSL();
     }
 
-    return "jdbc:postgresql://"
+    return "jdbc:postgresqlvault://"
         + server + ":"
         + port + "/"
         + getDatabase()

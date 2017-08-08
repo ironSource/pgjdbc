@@ -93,7 +93,7 @@ public class PGPropertyTest {
   public void testDriverGetPropertyInfo() {
     Driver driver = new Driver();
     DriverPropertyInfo[] infos = driver.getPropertyInfo(
-        "jdbc:postgresql://localhost/test?user=fred&password=secret&ssl=true",
+        "jdbc:postgresqlvault://localhost/test?user=fred&password=secret&ssl=true",
         // this is the example we give in docs
         new Properties());
     for (DriverPropertyInfo info : infos) {
@@ -204,7 +204,7 @@ public class PGPropertyTest {
     String databaseName = "d&a%ta+base";
     String userName = "&u%ser";
     String password = "p%a&s^s#w!o@r*";
-    String url = "jdbc:postgresql://"
+    String url = "jdbc:postgresqlvault://"
             + "localhost" + ":" + 5432 + "/"
             + URLEncoder.encode(databaseName)
             + "?user=" + URLEncoder.encode(userName)

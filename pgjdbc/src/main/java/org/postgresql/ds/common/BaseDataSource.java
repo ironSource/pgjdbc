@@ -1048,7 +1048,7 @@ public abstract class BaseDataSource implements CommonDataSource, Referenceable 
    */
   public String getUrl() {
     StringBuilder url = new StringBuilder(100);
-    url.append("jdbc:postgresql://");
+    url.append("jdbc:postgresqlvault://");
     url.append(serverName);
     if (portNumber != 0) {
       url.append(":").append(portNumber);
